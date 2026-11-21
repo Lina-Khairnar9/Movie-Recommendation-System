@@ -2,34 +2,53 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
-def fetch_poster(movie_id):
-    url = "https://api.themoviedb.org/3/movie/{}?api_key=8265bd1679663a7ea12ac168da84d2e8&language=en-US".format(movie_id)
-    data = requests.get(url)
-    data = data.json()
-    poster_path = data['poster_path']
-    full_path = "https://image.tmdb.org/t/p/w500/" + poster_path
-    return full_path
+import textwrap
+from PIL import Image, ImageDraw
+
+def create_fallback_poster(title):
+    img = Image.new("RGB", (300, 450), color=(25, 35, 60))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([12, 12, 288, 438], outline=(100, 149, 237), width=3)
+    wrapped_title = textwrap.fill(title, width=18)
+    draw.multiline_text((150, 225), wrapped_title, fill=(255, 255, 255), anchor="mm", align="center")
+    return img
+
+def fetch_poster(movie_id, title="Movie"):
+    try:
+        url = "http://omdbapi.com"
+        params = {"t": title, "apikey": "2284227e"}
+        data = requests.get(url, params=params, timeout=15).json()
+        if data.get("Poster") and data["Poster"] != "N/A":
+            return data["Poster"]
+    except Exception:
+        pass
+    return create_fallback_poster(title)
+
 def recommend(movie):
-    movie_index=movies[movies['title']==movie].index[0]
-    distance=similarity[movie_index]
-    movie_list=sorted(list(enumerate(distance)),reverse=True,key=lambda x:x[1])[1:6]
-    recommended_movies=[]
-    recommended_movies_poster=[]
+    movie_index = movies[movies['title'] == movie].index[0]
+    distances = similarity[movie_index]
+    movie_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+    recommended_movies = []
+    recommended_movies_poster = []
     for i in movie_list:
-       movie_id=movies.iloc[i[0]].movie_id	
-       recommended_movies.append(movies.iloc[i[0]].title)
-       #fetching poster from API
-       recommended_movies_poster.append(fetch_poster(movie_id))
+        movie_id = movies.iloc[i[0]].movie_id
+        title = movies.iloc[i[0]].title
+        recommended_movies.append(title)
+        recommended_movies_poster.append(fetch_poster(movie_id, title))
     return recommended_movies, recommended_movies_poster
-movies_dict=pickle.load(open('C:/Users/HP/movie recommender system/movie_dict.pkl','rb'))
-movies=pd.DataFrame(movies_dict)
-similarity=pickle.load(open('C:/Users/HP/movie recommender system/similarity.pkl','rb'))
+
+movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
+movies = pd.DataFrame(movies_dict)
+similarity = pickle.load(open('similarity.pkl', 'rb'))
+
 st.title("AI Based Movie Recommender System")
-selected_movie_name=st.selectbox(
+selected_movie_name = st.selectbox(
     'Select Movie From The Given List',
-    movies['title'].values)
+    movies['title'].values
+)
+
 if st.button('Recommend'):
-    names, poster=recommend(selected_movie_name)
+    names, poster = recommend(selected_movie_name)
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.text(names[0])
